@@ -3,11 +3,12 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.31105.61
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CoMallocNativeAot", "CoMallocNativeAot\CoMallocNativeAot.csproj", "{DBC3B789-D2D4-4F95-864D-AFF7B38B3AB4}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CoMallocNativeAot", "CoMallocNativeAot\CoMallocNativeAot.csproj", "{DBC3B789-D2D4-4F95-864D-AFF7B38B3AB4}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{8E96E53A-A622-474D-B1F5-04F0057BE7CD}"
 	ProjectSection(SolutionItems) = preProject
 		nuget.config = nuget.config
+		README.md = README.md
 	EndProjectSection
 EndProject
 Global
