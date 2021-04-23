@@ -24,9 +24,6 @@ namespace CoMallocNativeAot
 
         static void Main()
         {
-            // This is required for NativeAOT,
-            // since COM does not intialized by the compiler?
-            CoInitialize(IntPtr.Zero);
             Console.WriteLine("No spy test");
             MemoryAllocationTest();
             Console.WriteLine("Spy test");
@@ -155,9 +152,7 @@ namespace CoMallocNativeAot
 
         class MallocSpyComWrapper : ComWrappers
         {
-            static ComInterfaceEntry* wrapperEntry;
-
-            internal static Guid IMallocSpy_GUID = typeof(IMallocSpy).GUID;
+            static ComInterfaceEntry* mallocSpyEntry;
 
             static MallocSpyComWrapper()
             {
@@ -184,23 +179,19 @@ namespace CoMallocNativeAot
                     PreHeapMinimize = &IMallocSpyProxy.PreHeapMinimize,
                     PostHeapMinimize = &IMallocSpyProxy.PostHeapMinimize,
                 };
-                var vtblRaw = RuntimeHelpers.AllocateTypeAssociatedMemory(typeof(IMallocSpyVtbl), sizeof(IMallocSpyVtbl));
+                var vtblRaw = RuntimeHelpers.AllocateTypeAssociatedMemory(typeof(IMallocSpy), sizeof(IMallocSpyVtbl));
                 Marshal.StructureToPtr(vtbl, vtblRaw, false);
 
-                var comInterfaceEntryMemory = RuntimeHelpers.AllocateTypeAssociatedMemory(typeof(IMallocSpyVtbl), sizeof(ComInterfaceEntry));
-                wrapperEntry = (ComInterfaceEntry*)comInterfaceEntryMemory.ToPointer();
-                wrapperEntry->IID = IMallocSpy_GUID;
-                wrapperEntry->Vtable = vtblRaw;
-
-                //wrapperEntry = entry;
+                var comInterfaceEntryMemory = RuntimeHelpers.AllocateTypeAssociatedMemory(typeof(IMallocSpy), sizeof(ComInterfaceEntry));
+                mallocSpyEntry = (ComInterfaceEntry*)comInterfaceEntryMemory.ToPointer();
+                mallocSpyEntry->IID = new Guid("0000001d-0000-0000-C000-000000000046");
+                mallocSpyEntry->Vtable = vtblRaw;
             }
 
             protected override unsafe ComInterfaceEntry* ComputeVtables(object obj, CreateComInterfaceFlags flags, out int count)
             {
-                // count = 0;
-                // return null;
                 count = 1;
-                return wrapperEntry;
+                return mallocSpyEntry;
             }
 
             protected override object CreateObject(IntPtr externalComObject, CreateObjectFlags flags)
@@ -224,88 +215,100 @@ namespace CoMallocNativeAot
         public unsafe struct IMallocSpyVtbl
         {
             public IUnknownVtbl IUnknownImpl;
-            public delegate*<IntPtr, uint, uint> PreAlloc;
-            internal delegate*<IntPtr, void*, void*> PostAlloc;
-            internal delegate*<IntPtr, void*, bool, void*> PreFree;
-            internal delegate*<IntPtr, bool, void> PostFree;
-            internal delegate*<IntPtr, void*, uint, IntPtr*, bool, uint> PreRealloc;
-            internal delegate*<IntPtr, void*, bool, void*> PostRealloc;
-            internal delegate*<IntPtr, void*, bool, void*> PreGetSize;
-            internal delegate*<IntPtr, uint, bool, uint> PostGetSize;
-            internal delegate*<IntPtr, void*, bool, void*> PreDidAlloc;
-            internal delegate*<IntPtr, void*, bool, int, int> PostDidAlloc;
-            internal delegate*<IntPtr, void> PreHeapMinimize;
-            internal delegate*<IntPtr, void> PostHeapMinimize;
+            public delegate* unmanaged<IntPtr, uint, uint> PreAlloc;
+            internal delegate* unmanaged<IntPtr, void*, void*> PostAlloc;
+            internal delegate* unmanaged<IntPtr, void*, int, void*> PreFree;
+            internal delegate* unmanaged<IntPtr, int, void> PostFree;
+            internal delegate* unmanaged<IntPtr, void*, uint, IntPtr*, int, uint> PreRealloc;
+            internal delegate* unmanaged<IntPtr, void*, int, void*> PostRealloc;
+            internal delegate* unmanaged<IntPtr, void*, int, void*> PreGetSize;
+            internal delegate* unmanaged<IntPtr, uint, int, uint> PostGetSize;
+            internal delegate* unmanaged<IntPtr, void*, int, void*> PreDidAlloc;
+            internal delegate* unmanaged<IntPtr, void*, int, int, int> PostDidAlloc;
+            internal delegate* unmanaged<IntPtr, void> PreHeapMinimize;
+            internal delegate* unmanaged<IntPtr, void> PostHeapMinimize;
         }
 
         internal class IMallocSpyProxy
         {
+            [UnmanagedCallersOnly]
             public static uint PreAlloc(IntPtr thisPtr, uint cbRequest)
             {
                 var inst = ComInterfaceDispatch.GetInstance<IMallocSpy>((ComInterfaceDispatch*)thisPtr);
                 return inst.PreAlloc(cbRequest);
             }
 
+            [UnmanagedCallersOnly]
             public static void* PostAlloc(IntPtr thisPtr, void* pActual)
             {
                 var inst = ComInterfaceDispatch.GetInstance<IMallocSpy>((ComInterfaceDispatch*)thisPtr);
                 return inst.PostAlloc(pActual);
             }
 
-            public static void* PreFree(IntPtr thisPtr, void* pRequest, bool fSpyed)
+            [UnmanagedCallersOnly]
+            public static void* PreFree(IntPtr thisPtr, void* pRequest, int fSpyed)
             {
                 var inst = ComInterfaceDispatch.GetInstance<IMallocSpy>((ComInterfaceDispatch*)thisPtr);
-                return inst.PreFree(pRequest, fSpyed);
+                return inst.PreFree(pRequest, fSpyed != 0);
             }
 
-            public static void PostFree(IntPtr thisPtr, bool fSpyed)
+            [UnmanagedCallersOnly]
+            public static void PostFree(IntPtr thisPtr, int fSpyed)
             {
                 var inst = ComInterfaceDispatch.GetInstance<IMallocSpy>((ComInterfaceDispatch*)thisPtr);
-                inst.PostFree(fSpyed);
+                inst.PostFree(fSpyed != 0);
             }
 
-            public static uint PreRealloc(IntPtr thisPtr, void* pRequest, uint cbRequest, IntPtr* ppNewRequest, bool fSpyed)
+            [UnmanagedCallersOnly]
+            public static uint PreRealloc(IntPtr thisPtr, void* pRequest, uint cbRequest, IntPtr* ppNewRequest, int fSpyed)
             {
                 var inst = ComInterfaceDispatch.GetInstance<IMallocSpy>((ComInterfaceDispatch*)thisPtr);
-                return inst.PreRealloc(pRequest, cbRequest, ppNewRequest, fSpyed);
+                return inst.PreRealloc(pRequest, cbRequest, ppNewRequest, fSpyed != 0);
             }
 
-            public static void* PostRealloc(IntPtr thisPtr, void* pActual, bool fSpyed)
+            [UnmanagedCallersOnly]
+            public static void* PostRealloc(IntPtr thisPtr, void* pActual, int fSpyed)
             {
                 var inst = ComInterfaceDispatch.GetInstance<IMallocSpy>((ComInterfaceDispatch*)thisPtr);
-                return inst.PostRealloc(pActual, fSpyed);
+                return inst.PostRealloc(pActual, fSpyed != 0);
             }
 
-            public static void* PreGetSize(IntPtr thisPtr, void* pRequest, bool fSpyed)
+            [UnmanagedCallersOnly]
+            public static void* PreGetSize(IntPtr thisPtr, void* pRequest, int fSpyed)
             {
                 var inst = ComInterfaceDispatch.GetInstance<IMallocSpy>((ComInterfaceDispatch*)thisPtr);
-                return inst.PreGetSize(pRequest, fSpyed);
+                return inst.PreGetSize(pRequest, fSpyed != 0);
             }
 
-            public static uint PostGetSize(IntPtr thisPtr, uint cbActual, bool fSpyed)
+            [UnmanagedCallersOnly]
+            public static uint PostGetSize(IntPtr thisPtr, uint cbActual, int fSpyed)
             {
                 var inst = ComInterfaceDispatch.GetInstance<IMallocSpy>((ComInterfaceDispatch*)thisPtr);
-                return inst.PostGetSize(cbActual, fSpyed);
+                return inst.PostGetSize(cbActual, fSpyed != 0);
             }
 
-            public static void* PreDidAlloc(IntPtr thisPtr, void* pRequest, bool fSpyed)
+            [UnmanagedCallersOnly]
+            public static void* PreDidAlloc(IntPtr thisPtr, void* pRequest, int fSpyed)
             {
                 var inst = ComInterfaceDispatch.GetInstance<IMallocSpy>((ComInterfaceDispatch*)thisPtr);
-                return inst.PreDidAlloc(pRequest, fSpyed);
+                return inst.PreDidAlloc(pRequest, fSpyed != 0);
             }
 
-            public static int PostDidAlloc(IntPtr thisPtr, void* pRequest, bool fSpyed, int fActual)
+            [UnmanagedCallersOnly]
+            public static int PostDidAlloc(IntPtr thisPtr, void* pRequest, int fSpyed, int fActual)
             {
                 var inst = ComInterfaceDispatch.GetInstance<IMallocSpy>((ComInterfaceDispatch*)thisPtr);
-                return inst.PostDidAlloc(pRequest, fSpyed, fActual);
+                return inst.PostDidAlloc(pRequest, fSpyed != 0, fActual);
             }
 
+            [UnmanagedCallersOnly]
             public static void PreHeapMinimize(IntPtr thisPtr)
             {
                 var inst = ComInterfaceDispatch.GetInstance<IMallocSpy>((ComInterfaceDispatch*)thisPtr);
                 inst.PreHeapMinimize();
             }
 
+            [UnmanagedCallersOnly]
             public static void PostHeapMinimize(IntPtr thisPtr)
             {
                 var inst = ComInterfaceDispatch.GetInstance<IMallocSpy>((ComInterfaceDispatch*)thisPtr);
