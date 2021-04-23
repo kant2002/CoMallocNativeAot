@@ -1,0 +1,21 @@
+name: Build
+
+on: workflow_dispatch
+#on:
+#  push:
+#    branches: [ main ]
+#  pull_request:
+#    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+
+    - name: Build archive
+      run: dotnet publish -r win-x64 CoMallocNativeAot/CoMallocNativeAot.csproj
+    
